@@ -6,8 +6,8 @@ import (
 	"time"
 	"strings"
 
-	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	//kapi "k8s.io/apimachinery/pkg/api"
+	kapi "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/apimachinery/pkg/fields"
@@ -18,7 +18,7 @@ import (
 
 // OvnControllerFactory initializes and manages the kube watches that drive an ovn controller
 type OvnControllerFactory struct {
-	KClient        cache.Getter
+	KClient        kubernetes.Interface
 	ResyncInterval time.Duration
 	Namespace      string
 	Labels         labels.Selector
@@ -28,7 +28,7 @@ type OvnControllerFactory struct {
 // NewDefaultOvnControllerFactory initializes a default ovn controller factory.
 func NewDefaultOvnControllerFactory(c kubernetes.Interface) *OvnControllerFactory {
 	return &OvnControllerFactory{
-		KClient:        c.Core().RESTClient(),
+		KClient:        c,
 		ResyncInterval: 10 * time.Minute,
 		Namespace: kapi.NamespaceAll,
 		Labels:    labels.Everything(),
@@ -60,8 +60,8 @@ type watchEvent struct {
 // resources. It spawns child goroutines that cannot be terminated.
 func (factory *OvnControllerFactory) Create() *ovn.OvnController {
 
-	endpointsEventQueue := factory.newEventQueue(factory.KClient, "endpoints", &kapi.Endpoints{}, factory.Namespace)
-	podsEventQueue := factory.newEventQueue(factory.KClient, "pods", &kapi.Pod{}, factory.Namespace)
+	endpointsEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "endpoints", &kapi.Endpoints{}, factory.Namespace)
+	podsEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "pods", &kapi.Pod{}, factory.Namespace)
 
 	return &ovn.OvnController{
 		NextPod: func() (cache.DeltaType, *kapi.Pod, error) {
@@ -87,5 +87,6 @@ func (factory *OvnControllerFactory) Create() *ovn.OvnController {
 				})
 			return we.Event, we.Obj.(*kapi.Endpoints), nil
 		},
+		KClient: factory.KClient,
 	}
 }

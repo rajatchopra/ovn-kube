@@ -30,12 +30,33 @@ func main() {
 	ovnController := ovnkube.NewDefaultOvnControllerFactory(clientset).Create()
 
 	go checkPods(ovnController)
+
+	SetRandomAnnotations(clientset, ovnController)
+}
+
+func SetRandomAnnotations(clientset *kubernetes.Clientset, ovnController *ovn.OvnController) {
 	for {
 		pods, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
 		if err != nil {
 			panic(err.Error())
 		}
 		fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
+		for _, pod := range(pods.Items) {
+			var key, value string
+			fmt.Println("Enter key for pod ", pod.Name)
+			n, err := fmt.Scanf("%s", &key)
+			if n != 1 || err != nil {
+				fmt.Printf("Didn't scan properly %v, %v", n, err)
+				continue
+			}
+			fmt.Println("Enter value for key ", key, " for pod", pod.Name)
+			n, err = fmt.Scanf("%s", &value)
+			if n != 1 || err != nil {
+				fmt.Printf("Didn't scan properly %v, %v", n, err)
+				continue
+			}
+			ovnController.SetAnnotationOnPod(&pod, key, value)
+		}
 		time.Sleep(10 * time.Second)
 	}
 }
