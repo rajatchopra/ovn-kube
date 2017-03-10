@@ -1,14 +1,12 @@
 
 OUT_DIR = _output
-
-export GOBIN
+export OUT_DIR
 
 # Example:
 #   make
 #   make all
 all build:
-	mkdir -p ${OUT_DIR}/bin
-	go build -o ${OUT_DIR}/bin/watcher cmd/watcher/watcher.go
+	hack/build-go.sh cmd/watcher/watcher.go
 
 clean:
 	rm -rf ${OUT_DIR}
