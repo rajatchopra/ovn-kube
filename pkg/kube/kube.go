@@ -1,17 +1,16 @@
-
 package kube
 
 import (
 	"fmt"
-	"time"
 	"strings"
+	"time"
 
 	//kapi "k8s.io/apimachinery/pkg/api"
-	kapi "k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
+	kapi "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/rajatchopra/ovn-kube/pkg/ovn"
 )
@@ -30,9 +29,9 @@ func NewDefaultOvnControllerFactory(c kubernetes.Interface) *OvnControllerFactor
 	return &OvnControllerFactory{
 		KClient:        c,
 		ResyncInterval: 10 * time.Minute,
-		Namespace: kapi.NamespaceAll,
-		Labels:    labels.Everything(),
-		Fields:    fields.Everything(),
+		Namespace:      kapi.NamespaceAll,
+		Labels:         labels.Everything(),
+		Fields:         fields.Everything(),
 	}
 }
 
@@ -42,9 +41,9 @@ func (factory *OvnControllerFactory) newEventQueue(client cache.Getter, resource
 	keyFunc := cache.DeletionHandlingMetaNamespaceKeyFunc
 	knownObjectStore := cache.NewStore(keyFunc)
 	eventQueue := cache.NewDeltaFIFO(
-			keyFunc,
-			nil,
-			knownObjectStore)
+		keyFunc,
+		nil,
+		knownObjectStore)
 	// Repopulate event queue every sync Interval
 	// Existing items in the event queue will have watch.Modified event type
 	cache.NewReflector(lw, expectedType, eventQueue, factory.ResyncInterval).Run()
@@ -52,8 +51,8 @@ func (factory *OvnControllerFactory) newEventQueue(client cache.Getter, resource
 }
 
 type watchEvent struct {
-	Event      cache.DeltaType
-	Obj	   interface{}
+	Event cache.DeltaType
+	Obj   interface{}
 }
 
 // Create begins listing and watching against the API server for the desired route and endpoint
@@ -67,24 +66,24 @@ func (factory *OvnControllerFactory) Create() *ovn.OvnController {
 		NextPod: func() (cache.DeltaType, *kapi.Pod, error) {
 			we := &watchEvent{}
 			podsEventQueue.Pop(func(obj interface{}) error {
-					delta, ok := obj.(cache.Deltas)
-					if (!ok) {
-						fmt.Printf("Object %v not cache.Delta type", obj)
-					}	
-					we.Obj = delta.Newest().Object
-					we.Event = delta.Newest().Type
-					return nil
-				})
+				delta, ok := obj.(cache.Deltas)
+				if !ok {
+					fmt.Printf("Object %v not cache.Delta type", obj)
+				}
+				we.Obj = delta.Newest().Object
+				we.Event = delta.Newest().Type
+				return nil
+			})
 			return we.Event, we.Obj.(*kapi.Pod), nil
 		},
 		NextEndpoints: func() (cache.DeltaType, *kapi.Endpoints, error) {
 			we := &watchEvent{}
 			endpointsEventQueue.Pop(func(obj interface{}) error {
-					delta, _ := obj.(*cache.Delta)
-					we.Obj = delta.Object
-					we.Event = delta.Type
-					return nil
-				})
+				delta, _ := obj.(*cache.Delta)
+				we.Obj = delta.Object
+				we.Event = delta.Type
+				return nil
+			})
 			return we.Event, we.Obj.(*kapi.Endpoints), nil
 		},
 		KClient: factory.KClient,

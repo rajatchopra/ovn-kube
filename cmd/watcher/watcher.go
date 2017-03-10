@@ -26,12 +26,11 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	
+
 	ovnController := ovnkube.NewDefaultOvnControllerFactory(clientset).Create()
-
-	go checkPods(ovnController)
-
-	SetRandomAnnotations(clientset, ovnController)
+	ovnController.Run()
+	for {
+	}
 }
 
 func SetRandomAnnotations(clientset *kubernetes.Clientset, ovnController *ovn.OvnController) {
@@ -41,7 +40,7 @@ func SetRandomAnnotations(clientset *kubernetes.Clientset, ovnController *ovn.Ov
 			panic(err.Error())
 		}
 		fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
-		for _, pod := range(pods.Items) {
+		for _, pod := range pods.Items {
 			var key, value string
 			fmt.Println("Enter key for pod ", pod.Name)
 			n, err := fmt.Scanf("%s", &key)
@@ -58,16 +57,5 @@ func SetRandomAnnotations(clientset *kubernetes.Clientset, ovnController *ovn.Ov
 			ovnController.SetAnnotationOnPod(&pod, key, value)
 		}
 		time.Sleep(10 * time.Second)
-	}
-}
-
-func checkPods(ovnController *ovn.OvnController) {
-	for {
-		ev, pod, err := ovnController.NextPod()
-		if err != nil {
-			fmt.Printf("Error in pod watch: %v", ev)
-			continue
-		}
-		fmt.Printf(" Got event: %v for pod %s in namespace %s\n", ev, pod.Name, pod.Namespace)
 	}
 }
