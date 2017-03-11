@@ -15,6 +15,7 @@ import (
 
 func main() {
 	kubeconfig := flag.String("kubeconfig", "./config", "absolute path to the kubeconfig file")
+	testAnnotations := flag.Bool("annotate", false, "test annotations on pods interactively")
 	flag.Parse()
 	// uses the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
@@ -28,8 +29,12 @@ func main() {
 	}
 
 	ovnController := ovnkube.NewDefaultOvnControllerFactory(clientset).Create()
-	ovnController.Run()
-	for {
+
+	if *testAnnotations {
+		SetRandomAnnotations(clientset, ovnController)
+	} else {
+		ovnController.Run()
+		select {}
 	}
 }
 

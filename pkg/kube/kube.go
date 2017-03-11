@@ -79,9 +79,12 @@ func (factory *OvnControllerFactory) Create() *ovn.OvnController {
 		NextEndpoints: func() (cache.DeltaType, *kapi.Endpoints, error) {
 			we := &watchEvent{}
 			endpointsEventQueue.Pop(func(obj interface{}) error {
-				delta, _ := obj.(*cache.Delta)
-				we.Obj = delta.Object
-				we.Event = delta.Type
+				delta, ok := obj.(cache.Deltas)
+				if !ok {
+					fmt.Printf("Object %v not cache.Delta type", obj)
+				}
+				we.Obj = delta.Newest().Object
+				we.Event = delta.Newest().Type
 				return nil
 			})
 			return we.Event, we.Obj.(*kapi.Endpoints), nil
