@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	ovnkube "github.com/rajatchopra/ovn-kube/pkg/kube"
+	ovnfactory "github.com/rajatchopra/ovn-kube/pkg/factory"
 	ovn "github.com/rajatchopra/ovn-kube/pkg/ovn"
 )
 
@@ -28,7 +28,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	ovnController := ovnkube.NewDefaultOvnControllerFactory(clientset).Create()
+	ovnController := ovnfactory.NewDefaultOvnControllerFactory(clientset).Create()
 
 	if *testAnnotations {
 		SetRandomAnnotations(clientset, ovnController)
@@ -59,7 +59,7 @@ func SetRandomAnnotations(clientset *kubernetes.Clientset, ovnController *ovn.Ov
 				fmt.Printf("Didn't scan properly %v, %v", n, err)
 				continue
 			}
-			ovnController.SetAnnotationOnPod(&pod, key, value)
+			ovnController.Kube.SetAnnotationOnPod(&pod, key, value)
 		}
 		time.Sleep(10 * time.Second)
 	}

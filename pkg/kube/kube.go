@@ -2,93 +2,36 @@ package kube
 
 import (
 	"fmt"
-	"strings"
-	"time"
 
-	//kapi "k8s.io/apimachinery/pkg/api"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
+	"github.com/golang/glog"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	kapi "k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/cache"
-
-	"github.com/rajatchopra/ovn-kube/pkg/ovn"
 )
 
-// OvnControllerFactory initializes and manages the kube watches that drive an ovn controller
-type OvnControllerFactory struct {
-	KClient        kubernetes.Interface
-	ResyncInterval time.Duration
-	Namespace      string
-	Labels         labels.Selector
-	Fields         fields.Selector
+type KubeInterface interface {
+	SetAnnotationOnPod(pod *kapi.Pod, key, value string) error
+	GetPod(namespace, name string) (*kapi.Pod, error)
 }
 
-// NewDefaultOvnControllerFactory initializes a default ovn controller factory.
-func NewDefaultOvnControllerFactory(c kubernetes.Interface) *OvnControllerFactory {
-	return &OvnControllerFactory{
-		KClient:        c,
-		ResyncInterval: 10 * time.Minute,
-		Namespace:      kapi.NamespaceAll,
-		Labels:         labels.Everything(),
-		Fields:         fields.Everything(),
+type Kube struct {
+	KClient kubernetes.Interface
+}
+
+func (k *Kube) SetAnnotationOnPod(pod *kapi.Pod, key, value string) error {
+	glog.Infof("Setting annotations %s=%s on %s", key, value, pod.Name)
+	patchData := fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, key, value)
+	res, err := k.KClient.Core().Pods(pod.Namespace).Patch(pod.Name, types.MergePatchType, []byte(patchData))
+	if err != nil {
+		glog.Errorf("Error in setting annotation on pod %s/%s: %v", pod.Name, pod.Namespace, err)
 	}
-}
-
-func (factory *OvnControllerFactory) newEventQueue(client cache.Getter, resourceName string, expectedType interface{}, namespace string) *cache.DeltaFIFO {
-	rn := strings.ToLower(resourceName)
-	lw := cache.NewListWatchFromClient(client, rn, namespace, fields.Everything())
-	keyFunc := cache.DeletionHandlingMetaNamespaceKeyFunc
-	knownObjectStore := cache.NewStore(keyFunc)
-	eventQueue := cache.NewDeltaFIFO(
-		keyFunc,
-		nil,
-		knownObjectStore)
-	// Repopulate event queue every sync Interval
-	// Existing items in the event queue will have watch.Modified event type
-	cache.NewReflector(lw, expectedType, eventQueue, factory.ResyncInterval).Run()
-	return eventQueue
-}
-
-type watchEvent struct {
-	Event cache.DeltaType
-	Obj   interface{}
-}
-
-// Create begins listing and watching against the API server for the desired route and endpoint
-// resources. It spawns child goroutines that cannot be terminated.
-func (factory *OvnControllerFactory) Create() *ovn.OvnController {
-
-	endpointsEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "endpoints", &kapi.Endpoints{}, factory.Namespace)
-	podsEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "pods", &kapi.Pod{}, factory.Namespace)
-
-	return &ovn.OvnController{
-		NextPod: func() (cache.DeltaType, *kapi.Pod, error) {
-			we := &watchEvent{}
-			podsEventQueue.Pop(func(obj interface{}) error {
-				delta, ok := obj.(cache.Deltas)
-				if !ok {
-					fmt.Printf("Object %v not cache.Delta type", obj)
-				}
-				we.Obj = delta.Newest().Object
-				we.Event = delta.Newest().Type
-				return nil
-			})
-			return we.Event, we.Obj.(*kapi.Pod), nil
-		},
-		NextEndpoints: func() (cache.DeltaType, *kapi.Endpoints, error) {
-			we := &watchEvent{}
-			endpointsEventQueue.Pop(func(obj interface{}) error {
-				delta, ok := obj.(cache.Deltas)
-				if !ok {
-					fmt.Printf("Object %v not cache.Delta type", obj)
-				}
-				we.Obj = delta.Newest().Object
-				we.Event = delta.Newest().Type
-				return nil
-			})
-			return we.Event, we.Obj.(*kapi.Endpoints), nil
-		},
-		KClient: factory.KClient,
+	if res.Annotations[key] != value {
+		fmt.Printf("Annotations not set properly - %v", res.Annotations)
 	}
+	return err
+}
+
+func (k *Kube) GetPod(namespace, name string) (*kapi.Pod, error) {
+	return k.KClient.Core().Pods(namespace).Get(name, metav1.GetOptions{})
 }

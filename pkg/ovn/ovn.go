@@ -8,18 +8,17 @@ import (
 	"time"
 	"unicode"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
+	"github.com/rajatchopra/ovn-kube/pkg/kube"
 	kapi "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 type OvnController struct {
-	KClient kubernetes.Interface
+	Kube kube.KubeInterface
 
 	NextPod       func() (cache.DeltaType, *kapi.Pod, error)
 	NextEndpoints func() (cache.DeltaType, *kapi.Endpoints, error)
+	NextNode      func() (cache.DeltaType, *kapi.Node, error)
 
 	gatewayCache map[string]string
 }
@@ -32,6 +31,7 @@ func (oc *OvnController) Run() {
 	oc.gatewayCache = make(map[string]string)
 	go oc.WatchPods()
 	go oc.WatchEndpoints()
+	go oc.WatchNodes()
 }
 
 func (oc *OvnController) WatchPods() {
@@ -48,6 +48,24 @@ func (oc *OvnController) WatchPods() {
 			oc.deleteLogicalPort(pod)
 		case cache.Updated, cache.Sync:
 			// do nothing
+		}
+	}
+}
+
+func (oc *OvnController) WatchNodes() {
+	for {
+		ev, node, err := oc.NextNode()
+		if err != nil {
+			glog.Errorf("Error in watching nodes: %v", err)
+			continue
+		}
+		switch ev {
+		case cache.Added:
+			glog.V(4).Infof("Node %v added", node.Name)
+		case cache.Deleted:
+			glog.V(4).Infof("Node %v deleted", node.Name)
+		case cache.Updated, cache.Sync:
+			glog.V(4).Infof("Node %v updated/synced", node.Name)
 		}
 	}
 }
@@ -75,6 +93,10 @@ func (oc *OvnController) getGatewayFromSwitch(logical_switch string) (string, st
 }
 
 func (oc *OvnController) deleteLogicalPort(pod *kapi.Pod) {
+	out, err := exec.Command(OVN_NBCTL, "lsp-del", fmt.Sprintf("%s_%s", pod.Namespace, pod.Name)).CombinedOutput()
+	if err != nil {
+		glog.Errorf("Error in deleting pod network switch - %v(%v)", out, err)
+	}
 	return
 }
 
@@ -88,7 +110,7 @@ func (oc *OvnController) addLogicalPort(pod *kapi.Pod) {
 		}
 		time.Sleep(1 * time.Second)
 		count--
-		p, err := oc.GetPod(pod.Namespace, pod.Name)
+		p, err := oc.Kube.GetPod(pod.Namespace, pod.Name)
 		if err != nil {
 			glog.Errorf("Could not get pod %s/%s for obtaining the logical switch it belongs to", pod.Namespace, pod.Name)
 			return
@@ -144,7 +166,7 @@ func (oc *OvnController) addLogicalPort(pod *kapi.Pod) {
 
 	annotation := fmt.Sprintf(`{\"ip_address\":\"%s/%s\", \"mac_address\":\"%s\", \"gateway_ip\": \"%s\"}`, addresses[1], mask, addresses[0], gateway_ip)
 	glog.V(4).Infof("Annotation values: ip=%s/%s ; mac=%s ; gw=%s\nAnnotation=%s", addresses[1], mask, addresses[0], gateway_ip, annotation)
-	err = oc.SetAnnotationOnPod(pod, "ovn", annotation)
+	err = oc.Kube.SetAnnotationOnPod(pod, "ovn", annotation)
 	if err != nil {
 		glog.Errorf("Failed to set annotation on pod %s - %v", pod.Name, err)
 	}
@@ -160,21 +182,4 @@ func (oc *OvnController) WatchEndpoints() {
 		}
 		glog.V(4).Infof("Endpoint event %v, %v", ev, ep)
 	}
-}
-
-func (oc *OvnController) SetAnnotationOnPod(pod *kapi.Pod, key, value string) error {
-	glog.Infof("Setting annotations %s=%s on %s", key, value, pod.Name)
-	patchData := fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, key, value)
-	res, err := oc.KClient.Core().Pods(pod.Namespace).Patch(pod.Name, types.MergePatchType, []byte(patchData))
-	if err != nil {
-		glog.Errorf("Error in setting annotation on pod %s/%s: %v", pod.Name, pod.Namespace, err)
-	}
-	if res.Annotations[key] != value {
-		fmt.Printf("Annotations not set properly - %v", res.Annotations)
-	}
-	return err
-}
-
-func (oc *OvnController) GetPod(namespace, name string) (*kapi.Pod, error) {
-	return oc.KClient.Core().Pods(namespace).Get(name, metav1.GetOptions{})
 }
