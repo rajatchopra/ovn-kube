@@ -18,7 +18,6 @@ type OvnController struct {
 
 	NextPod       func() (cache.DeltaType, *kapi.Pod, error)
 	NextEndpoints func() (cache.DeltaType, *kapi.Endpoints, error)
-	NextNode      func() (cache.DeltaType, *kapi.Node, error)
 
 	gatewayCache map[string]string
 }
@@ -31,7 +30,6 @@ func (oc *OvnController) Run() {
 	oc.gatewayCache = make(map[string]string)
 	go oc.WatchPods()
 	go oc.WatchEndpoints()
-	go oc.WatchNodes()
 }
 
 func (oc *OvnController) WatchPods() {
@@ -48,24 +46,6 @@ func (oc *OvnController) WatchPods() {
 			oc.deleteLogicalPort(pod)
 		case cache.Updated, cache.Sync:
 			// do nothing
-		}
-	}
-}
-
-func (oc *OvnController) WatchNodes() {
-	for {
-		ev, node, err := oc.NextNode()
-		if err != nil {
-			glog.Errorf("Error in watching nodes: %v", err)
-			continue
-		}
-		switch ev {
-		case cache.Added:
-			glog.V(4).Infof("Node %v added", node.Name)
-		case cache.Deleted:
-			glog.V(4).Infof("Node %v deleted", node.Name)
-		case cache.Updated, cache.Sync:
-			glog.V(4).Infof("Node %v updated/synced", node.Name)
 		}
 	}
 }
@@ -108,8 +88,10 @@ func (oc *OvnController) addLogicalPort(pod *kapi.Pod) {
 		if logical_switch != "" {
 			break
 		}
-		time.Sleep(1 * time.Second)
-		count--
+		if count != 30 {
+			time.Sleep(1 * time.Second)
+			count--
+		}
 		p, err := oc.Kube.GetPod(pod.Namespace, pod.Name)
 		if err != nil {
 			glog.Errorf("Could not get pod %s/%s for obtaining the logical switch it belongs to", pod.Namespace, pod.Name)

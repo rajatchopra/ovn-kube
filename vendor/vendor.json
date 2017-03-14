@@ -164,6 +164,12 @@
 			"revisionTime": "2017-02-27T20:08:46Z"
 		},
 		{
+			"checksumSHA1": "BtIllT1mrqGg0iGKZNETe5LVzIA=",
+			"path": "github.com/openshift/origin/pkg/util/netutils",
+			"revision": "cb5d93ed9f37a29ea023e5e119ed4a9fa9873715",
+			"revisionTime": "2017-03-01T17:39:42Z"
+		},
+		{
 			"checksumSHA1": "5KvHyB1CImtwZT3fwNkNUlc8R0k=",
 			"origin": "k8s.io/apimachinery/vendor/github.com/spf13/pflag",
 			"path": "github.com/spf13/pflag",
@@ -1011,6 +1017,13 @@
 			"path": "k8s.io/kubernetes/pkg/api",
 			"revision": "2509ab0c7a5ceb140166ee33b288dabab7aa69e7",
 			"revisionTime": "2017-02-16T18:14:12Z"
+		},
+		{
+			"checksumSHA1": "7m1RiGSKkh7xa6Fy4tHkAmMh3yU=",
+			"origin": "github.com/openshift/origin/vendor/k8s.io/kubernetes/pkg/util/errors",
+			"path": "k8s.io/kubernetes/pkg/util/errors",
+			"revision": "cb5d93ed9f37a29ea023e5e119ed4a9fa9873715",
+			"revisionTime": "2017-03-01T17:39:42Z"
 		}
 	],
 	"rootPath": "github.com/rajatchopra/ovn-kube"

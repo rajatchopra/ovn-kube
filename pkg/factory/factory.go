@@ -12,12 +12,13 @@ import (
 	kapi "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/rajatchopra/ovn-kube/pkg/cluster"
 	"github.com/rajatchopra/ovn-kube/pkg/kube"
 	"github.com/rajatchopra/ovn-kube/pkg/ovn"
 )
 
-// OvnControllerFactory initializes and manages the kube watches that drive an ovn controller
-type OvnControllerFactory struct {
+// Factory initializes and manages the kube watches that drive an ovn controller
+type Factory struct {
 	KClient        kubernetes.Interface
 	ResyncInterval time.Duration
 	Namespace      string
@@ -25,9 +26,9 @@ type OvnControllerFactory struct {
 	Fields         fields.Selector
 }
 
-// NewDefaultOvnControllerFactory initializes a default ovn controller factory.
-func NewDefaultOvnControllerFactory(c kubernetes.Interface) *OvnControllerFactory {
-	return &OvnControllerFactory{
+// NewDefaultFactory initializes a default ovn controller factory.
+func NewDefaultFactory(c kubernetes.Interface) *Factory {
+	return &Factory{
 		KClient:        c,
 		ResyncInterval: 10 * time.Minute,
 		Namespace:      kapi.NamespaceAll,
@@ -36,7 +37,7 @@ func NewDefaultOvnControllerFactory(c kubernetes.Interface) *OvnControllerFactor
 	}
 }
 
-func (factory *OvnControllerFactory) newEventQueue(client cache.Getter, resourceName string, expectedType interface{}, namespace string) *cache.DeltaFIFO {
+func (factory *Factory) newEventQueue(client cache.Getter, resourceName string, expectedType interface{}, namespace string) *cache.DeltaFIFO {
 	rn := strings.ToLower(resourceName)
 	lw := cache.NewListWatchFromClient(client, rn, namespace, fields.Everything())
 	keyFunc := cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -58,11 +59,10 @@ type watchEvent struct {
 
 // Create begins listing and watching against the API server for the desired route and endpoint
 // resources. It spawns child goroutines that cannot be terminated.
-func (factory *OvnControllerFactory) Create() *ovn.OvnController {
+func (factory *Factory) CreateOvnController() *ovn.OvnController {
 
 	endpointsEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "endpoints", &kapi.Endpoints{}, factory.Namespace)
 	podsEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "pods", &kapi.Pod{}, factory.Namespace)
-	nodesEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "nodes", &kapi.Node{}, factory.Namespace)
 
 	return &ovn.OvnController{
 		NextPod: func() (cache.DeltaType, *kapi.Pod, error) {
@@ -91,6 +91,13 @@ func (factory *OvnControllerFactory) Create() *ovn.OvnController {
 			})
 			return we.Event, we.Obj.(*kapi.Endpoints), nil
 		},
+		Kube: &kube.Kube{KClient: factory.KClient},
+	}
+}
+
+func (factory *Factory) CreateClusterController() *cluster.OvnClusterController {
+	nodesEventQueue := factory.newEventQueue(factory.KClient.Core().RESTClient(), "nodes", &kapi.Node{}, factory.Namespace)
+	return &cluster.OvnClusterController{
 		NextNode: func() (cache.DeltaType, *kapi.Node, error) {
 			we := &watchEvent{}
 			nodesEventQueue.Pop(func(obj interface{}) error {

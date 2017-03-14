@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +17,8 @@ import (
 func main() {
 	kubeconfig := flag.String("kubeconfig", "./config", "absolute path to the kubeconfig file")
 	testAnnotations := flag.Bool("annotate", false, "test annotations on pods interactively")
+	master := flag.Bool("master", true, "run in master mode")
+	node := flag.String("node", "", "run to initialize the given hostname")
 	flag.Parse()
 	// uses the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
@@ -28,12 +31,23 @@ func main() {
 		panic(err.Error())
 	}
 
-	ovnController := ovnfactory.NewDefaultOvnControllerFactory(clientset).Create()
+	factory := ovnfactory.NewDefaultFactory(clientset)
+
+	ovnController := factory.CreateOvnController()
+	clusterController := factory.CreateClusterController()
 
 	if *testAnnotations {
 		SetRandomAnnotations(clientset, ovnController)
+	} else if *node != "" {
+		clusterController.StartClusterNode(*node)
 	} else {
 		ovnController.Run()
+
+		if *master {
+			// run the cluster controller to init the master
+			_, clusterSub, _ := net.ParseCIDR("11.11.0.0/16")
+			clusterController.StartClusterMaster(clusterSub, 8)
+		}
 		select {}
 	}
 }
