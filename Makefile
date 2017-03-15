@@ -6,7 +6,7 @@ export OUT_DIR
 #   make
 #   make all
 all build:
-	hack/build-go.sh cmd/watcher/watcher.go
+	hack/build-go.sh cmd/ovnkube/ovnkube.go
 
 clean:
 	rm -rf ${OUT_DIR}
