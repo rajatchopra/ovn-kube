@@ -32,6 +32,17 @@ func (cluster *OvnClusterController) StartClusterMaster(clusterNetwork *net.IPNe
 		return err
 	}
 
+	// now go over the 'existing' list again and create annotations for those who do not have it
+	for _, node := range existingNodes.Items {
+		_, ok := node.Annotations[OVN_HOST_SUBNET]
+		if !ok {
+			err := cluster.addNode(&node)
+			if err != nil {
+				glog.Errorf("error creating subnet for node %s: %v", node.Name, err)
+			}
+		}
+	}
+
 	go utilwait.Forever(cluster.watchNodes, 0)
 	return nil
 }
