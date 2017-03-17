@@ -20,6 +20,7 @@ func main() {
 	server := flag.String("apiserver", "https://localhost:8443", "url to the kubernetes apiserver")
 	rootCAFile := flag.String("ca-cert", "", "CA cert for the api server")
 	token := flag.String("token", "", "Bearer token to use for establishing ovn infrastructure")
+	clusterSubnet := flag.String("cluster-subnet", "11.11.0.0/16", "Cluster wide IP subnet to use")
 
 	// mode flags
 	netController := flag.Bool("net-controller", false, "Flag to start the central controller that watches pods/services/policies")
@@ -51,8 +52,18 @@ func main() {
 
 	// create factory and start the controllers asked for
 	factory := ovnfactory.NewDefaultFactory(clientset)
-
 	clusterController := factory.CreateClusterController()
+
+	if *master != "" || *node != "" {
+		clusterController.KubeServer = *server
+		clusterController.CACert = *rootCAFile
+		clusterController.Token = *token
+		clusterController.HostSubnetLength = 8
+		_, clusterController.ClusterIPNet, err = net.ParseCIDR(*clusterSubnet)
+		if err != nil {
+			panic(err.Error)
+		}
+	}
 	ovnController := factory.CreateOvnController()
 
 	if *node != "" {
@@ -60,12 +71,12 @@ func main() {
 			panic("Cannot initialize node without service account 'token'. Please provide one with --token argument")
 			return
 		}
+
 		clusterController.StartClusterNode(*node)
 	}
 	if *master != "" {
 		// run the cluster controller to init the master
-		_, clusterSub, _ := net.ParseCIDR("11.11.0.0/16")
-		clusterController.StartClusterMaster(clusterSub, 8)
+		clusterController.StartClusterMaster(*master)
 	}
 	if *netController {
 		ovnController.Run()

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"net"
+	"os/exec"
 	"time"
 
 	"github.com/golang/glog"
@@ -40,7 +41,17 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 		break
 	}
 
+	if count == 0 {
+		glog.Errorf("Failed to get node/node-annotation for %s - %v", name, err)
+		return err
+	}
+
 	glog.Infof("Node %s ready for ovn initialization with subnet %s", node.Name, subnet.String())
+
+	out, err := exec.Command("ovnkube-setup-node", cluster.Token, cluster.KubeServer, subnet.String(), cluster.ClusterIPNet.String(), name).CombinedOutput()
+	if err != nil {
+		glog.Errorf("Error in setting up node - %s (%v)", out, err)
+	}
 
 	return err
 }

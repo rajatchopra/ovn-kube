@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"net"
+
 	"github.com/openshift/origin/pkg/util/netutils"
 	"github.com/rajatchopra/ovn-kube/pkg/kube"
 	kapi "k8s.io/client-go/pkg/api/v1"
@@ -10,7 +12,14 @@ import (
 type OvnClusterController struct {
 	Kube                  kube.KubeInterface
 	masterSubnetAllocator *netutils.SubnetAllocator
-	NextNode              func() (cache.DeltaType, *kapi.Node, error)
+
+	KubeServer       string
+	CACert           string
+	Token            string
+	ClusterIPNet     *net.IPNet
+	HostSubnetLength uint32
+
+	NextNode func() (cache.DeltaType, *kapi.Node, error)
 }
 
 const (

@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 	"net"
+	"os/exec"
 
 	"github.com/golang/glog"
 
@@ -13,7 +14,10 @@ import (
 	"github.com/openshift/origin/pkg/util/netutils"
 )
 
-func (cluster *OvnClusterController) StartClusterMaster(clusterNetwork *net.IPNet, hostSubnetLength uint32) error {
+func (cluster *OvnClusterController) StartClusterMaster(masterNodeName string) error {
+	clusterNetwork := cluster.ClusterIPNet
+	hostSubnetLength := cluster.HostSubnetLength
+
 	subrange := make([]string, 0)
 	existingNodes, err := cluster.Kube.GetNodes()
 	if err != nil {
@@ -26,7 +30,11 @@ func (cluster *OvnClusterController) StartClusterMaster(clusterNetwork *net.IPNe
 			subrange = append(subrange, hostsubnet)
 		}
 	}
-
+	masterSwitchNetwork, err := calculateMasterSwitchNetwork(clusterNetwork.String(), hostSubnetLength)
+	if err != nil {
+		return err
+	}
+	subrange = append(subrange, masterSwitchNetwork)
 	cluster.masterSubnetAllocator, err = netutils.NewSubnetAllocator(clusterNetwork.String(), hostSubnetLength, subrange)
 	if err != nil {
 		return err
@@ -43,8 +51,23 @@ func (cluster *OvnClusterController) StartClusterMaster(clusterNetwork *net.IPNe
 		}
 	}
 
+	cluster.SetupMaster(masterNodeName, masterSwitchNetwork)
+
 	go utilwait.Forever(cluster.watchNodes, 0)
 	return nil
+}
+
+func calculateMasterSwitchNetwork(clusterNetwork string, hostSubnetLength uint32) (string, error) {
+	subAllocator, err := netutils.NewSubnetAllocator(clusterNetwork, hostSubnetLength, make([]string, 0))
+	sn, err := subAllocator.GetNetwork()
+	return sn.String(), err
+}
+
+func (cluster *OvnClusterController) SetupMaster(masterNodeName string, masterSwitchNetwork string) {
+	out, err := exec.Command("ovnkube-setup-master", cluster.Token, cluster.KubeServer, masterSwitchNetwork, cluster.ClusterIPNet.String(), masterNodeName).CombinedOutput()
+	if err != nil {
+		glog.Errorf("Error setting up master node - %v(%v)", out, err)
+	}
 }
 
 func (cluster *OvnClusterController) addNode(node *kapi.Node) error {
