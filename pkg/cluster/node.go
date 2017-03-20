@@ -7,6 +7,8 @@ import (
 
 	"github.com/golang/glog"
 	kapi "k8s.io/client-go/pkg/api/v1"
+
+	"github.com/openshift/origin/pkg/util/netutils"
 )
 
 func (cluster *OvnClusterController) StartClusterNode(name string) error {
@@ -46,9 +48,15 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 		return err
 	}
 
+	nodeIP, err := netutils.GetNodeIP(node.Name)
+	if err != nil {
+		glog.Errorf("Failed to obtain node's IP: %v", err)
+		return err
+	}
+
 	glog.Infof("Node %s ready for ovn initialization with subnet %s", node.Name, subnet.String())
 
-	out, err := exec.Command("ovnkube-setup-node", cluster.Token, cluster.KubeServer, subnet.String(), cluster.ClusterIPNet.String(), name).CombinedOutput()
+	out, err := exec.Command("ovnkube-setup-node", cluster.Token, nodeIP, cluster.KubeServer, subnet.String(), cluster.ClusterIPNet.String(), name).CombinedOutput()
 	if err != nil {
 		glog.Errorf("Error in setting up node - %s (%v)", out, err)
 	}

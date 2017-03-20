@@ -16,6 +16,7 @@ type KubeInterface interface {
 	GetPod(namespace, name string) (*kapi.Pod, error)
 	GetNodes() (*kapi.NodeList, error)
 	GetNode(name string) (*kapi.Node, error)
+	GetService(namespace, name string) (*kapi.Service, error)
 }
 
 type Kube struct {
@@ -52,4 +53,8 @@ func (k *Kube) GetNodes() (*kapi.NodeList, error) {
 
 func (k *Kube) GetNode(name string) (*kapi.Node, error) {
 	return k.KClient.Core().Nodes().Get(name, metav1.GetOptions{})
+}
+
+func (k *Kube) GetService(namespace, name string) (*kapi.Service, error) {
+	return k.KClient.Core().Services(namespace).Get(name, metav1.GetOptions{})
 }
