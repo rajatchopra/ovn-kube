@@ -34,6 +34,7 @@ func (oc *OvnController) getGatewayFromSwitch(logical_switch string) (string, st
 }
 
 func (oc *OvnController) deleteLogicalPort(pod *kapi.Pod) {
+	glog.V(4).Infof("Deleting pod: %s", pod.Name)
 	out, err := exec.Command(OVN_NBCTL, "lsp-del", fmt.Sprintf("%s_%s", pod.Namespace, pod.Name)).CombinedOutput()
 	if err != nil {
 		glog.Errorf("Error in deleting pod network switch - %v(%v)", out, err)
