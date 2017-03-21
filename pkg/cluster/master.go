@@ -66,7 +66,7 @@ func calculateMasterSwitchNetwork(clusterNetwork string, hostSubnetLength uint32
 func (cluster *OvnClusterController) SetupMaster(masterNodeName string, masterSwitchNetwork string) {
 	out, err := exec.Command("ovnkube-setup-master", cluster.Token, cluster.KubeServer, masterSwitchNetwork, cluster.ClusterIPNet.String(), masterNodeName).CombinedOutput()
 	if err != nil {
-		glog.Errorf("Error setting up master node - %v(%v)", out, err)
+		glog.Errorf("Error setting up master node - %v(%v)", string(out), err)
 	}
 }
 

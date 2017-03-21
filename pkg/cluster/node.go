@@ -58,7 +58,7 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 
 	out, err := exec.Command("ovnkube-setup-node", cluster.Token, nodeIP, cluster.KubeServer, subnet.String(), cluster.ClusterIPNet.String(), name).CombinedOutput()
 	if err != nil {
-		glog.Errorf("Error in setting up node - %s (%v)", out, err)
+		glog.Errorf("Error in setting up node - %s (%v)", string(out), err)
 	}
 
 	return err

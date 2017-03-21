@@ -20,12 +20,6 @@ install() {
 	    curl http://trunk.rdoproject.org/centos7/delorean-deps.repo | sudo tee /etc/yum.repos.d/delorean-deps.repo
 	fi
 	sudo yum install -y openvswitch openvswitch-ovn-central openvswitch-ovn-host
-	sudo yum -y install pip
-
-	cd /tmp/
-	git clone https://github.com/openvswitch/ovn-kubernetes
-	cd ovn-kubernetes
-	sudo pip install .
 }
 
 init() {
@@ -36,12 +30,17 @@ init() {
 ovnsetup() {
 	ovs-vsctl set Open_vSwitch . \
 	  external_ids:k8s-api-server="${K8S_API_SERVER_IP}" \
+	  external_ids:k8s-api-token="${API_TOKEN}"
+
+	echo "ovn-k8s-overlay master-init \
+	  --cluster-ip-subnet=${CLUSTER_IP_SUBNET} \
+	  --master-switch-subnet=${MASTER_SWITCH_SUBNET}\
+	  --node-name=${NODE_NAME}"
 
 	ovn-k8s-overlay master-init \
 	  --cluster-ip-subnet=${CLUSTER_IP_SUBNET} \
-	  --master-switch-subnet="$MASTER_SWITCH_SUBNET" \
+	  --master-switch-subnet="${MASTER_SWITCH_SUBNET}" \
 	  --node-name="${NODE_NAME}"
-	  external_ids:k8s-api-token="${API_TOKEN}"
 }
 
 install

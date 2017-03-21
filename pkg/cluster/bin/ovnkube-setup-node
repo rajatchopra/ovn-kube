@@ -9,7 +9,7 @@ hostname=`hostname`
 NODE_NAME=${6-$hostname}
 
 ENCAP_TYPE=${ENCAP_TYPE-geneve}
-CENTRAL_IP=$(echo -n ${K8S_API_SERVER_IP} | cut -d "/" -f 3 | cut -f ":" -f 1)
+CENTRAL_IP=$(echo -n ${K8S_API_SERVER_IP} | cut -d "/" -f 3 | cut -d ":" -f 1)
 
 if [[ "${API_TOKEN}" == "" ]]; then
 	echo "Supply kube access secret as the argument"
@@ -22,12 +22,6 @@ install() {
 	    curl http://trunk.rdoproject.org/centos7/delorean-deps.repo | sudo tee /etc/yum.repos.d/delorean-deps.repo
 	fi
 	sudo yum install -y openvswitch openvswitch-ovn-central openvswitch-ovn-host
-	sudo yum -y install pip
-
-	cd /tmp/
-	git clone https://github.com/openvswitch/ovn-kubernetes
-	cd ovn-kubernetes
-	sudo pip install .
 }
 
 init() {
@@ -36,7 +30,7 @@ init() {
 	  external_ids:ovn-nb="tcp:${CENTRAL_IP}:6641" \
 	  external_ids:ovn-encap-ip=${NODE_IP} \
 	  external_ids:ovn-encap-type="$ENCAP_TYPE"
-	systemctl start ovn-controller
+	systemctl restart ovn-controller
 }
 
 ovnsetup() {
