@@ -5,7 +5,6 @@ import (
 
 	"github.com/openshift/origin/pkg/util/netutils"
 	"github.com/rajatchopra/ovn-kube/pkg/kube"
-	kapi "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -19,7 +18,7 @@ type OvnClusterController struct {
 	ClusterIPNet     *net.IPNet
 	HostSubnetLength uint32
 
-	NextNode func() (cache.DeltaType, *kapi.Node, error)
+	StartNodeWatch func(handler cache.ResourceEventHandler)
 }
 
 const (

@@ -106,23 +106,38 @@ func (cluster *OvnClusterController) deleteNode(node *kapi.Node) error {
 }
 
 func (cluster *OvnClusterController) watchNodes() {
-	ev, node, err := cluster.NextNode()
-	switch ev {
-	case cache.Added:
-		glog.V(5).Infof("Added event for Node %q", node.Name)
-
-		err = cluster.addNode(node)
-		if err != nil {
-			glog.Errorf("error creating subnet for node %s: %v", node.Name, err)
-		}
-	case cache.Deleted:
-		glog.V(5).Infof("Delete event for Node %q", node.Name)
-
-		err = cluster.deleteNode(node)
-		if err != nil {
-			glog.Errorf("Error deleting node %s: %v", node.Name, err)
-		}
-	case cache.Sync, cache.Updated:
-		// do nothing
+	handler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			node := obj.(*kapi.Node)
+			glog.V(5).Infof("Added event for Node %q", node.Name)
+			err := cluster.addNode(node)
+			if err != nil {
+				glog.Errorf("error creating subnet for node %s: %v", node.Name, err)
+			}
+			return
+		},
+		UpdateFunc: func(old, new interface{}) { return },
+		DeleteFunc: func(obj interface{}) {
+			node, ok := obj.(*kapi.Node)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.Errorf("couldn't get object from tombstone %+v", obj)
+					return
+				}
+				node, ok = tombstone.Obj.(*kapi.Node)
+				if !ok {
+					glog.Errorf("tombstone contained object that is not a node %#v", obj)
+					return
+				}
+			}
+			glog.V(5).Infof("Delete event for Node %q", node.Name)
+			err := cluster.deleteNode(node)
+			if err != nil {
+				glog.Errorf("Error deleting node %s: %v", node.Name, err)
+			}
+			return
+		},
 	}
+	cluster.StartNodeWatch(handler)
 }

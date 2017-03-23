@@ -11,8 +11,8 @@ import (
 type OvnController struct {
 	Kube kube.KubeInterface
 
-	NextPod       func() (cache.DeltaType, *kapi.Pod, error)
-	NextEndpoints func() (cache.DeltaType, *kapi.Endpoints, error)
+	StartPodWatch      func(handler cache.ResourceEventHandler)
+	StartEndpointWatch func(handler cache.ResourceEventHandler)
 
 	gatewayCache map[string]string
 }
@@ -23,46 +23,69 @@ const (
 
 func (oc *OvnController) Run() {
 	oc.gatewayCache = make(map[string]string)
-	go oc.WatchPods()
-	go oc.WatchEndpoints()
+	oc.WatchPods()
+	oc.WatchEndpoints()
 }
 
 func (oc *OvnController) WatchPods() {
-	for {
-		ev, pod, err := oc.NextPod()
-		if err != nil {
-			glog.Errorf("Error in watching pods: %v", err)
-			continue
-		}
-		switch ev {
-		case cache.Added:
+	oc.StartPodWatch(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*kapi.Pod)
 			oc.addLogicalPort(pod)
-		case cache.Deleted:
+			return
+		},
+		UpdateFunc: func(old, new interface{}) {
+			return
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod, ok := obj.(*kapi.Pod)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.Errorf("couldn't get object from tombstone %+v", obj)
+					return
+				}
+				pod, ok = tombstone.Obj.(*kapi.Pod)
+				if !ok {
+					glog.Errorf("tombstone contained object that is not a pod %#v", obj)
+					return
+				}
+			}
 			oc.deleteLogicalPort(pod)
-		case cache.Updated, cache.Sync:
-			// do nothing
-		}
-	}
+			return
+		},
+	})
 }
 
 func (oc *OvnController) WatchEndpoints() {
-	for {
-		ev, ep, err := oc.NextEndpoints()
-		if err != nil {
-			glog.Errorf("Error in obtaining next endpoint event- %v", err)
-			continue
-		}
-		glog.V(4).Infof("Endpoint event %v, %v", ev, ep)
-		switch ev {
-		case cache.Added:
-			err = oc.addEndpoints(ep)
-		case cache.Deleted:
-			err = oc.deleteEndpoints(ep)
-		case cache.Updated, cache.Sync:
-			// TODO: check what has changed
-		}
-		if err != nil {
-			glog.Errorf("Error in processing endpoint: %v", err)
-		}
-	}
+	oc.StartEndpointWatch(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			ep := obj.(*kapi.Endpoints)
+			err := oc.addEndpoints(ep)
+			if err != nil {
+				glog.Errorf("Error in adding load balancer: %v", err)
+			}
+		},
+		UpdateFunc: func(old, new interface{}) { return },
+		DeleteFunc: func(obj interface{}) {
+			ep, ok := obj.(*kapi.Endpoints)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.Errorf("couldn't get object from tombstone %+v", obj)
+					return
+				}
+				ep, ok = tombstone.Obj.(*kapi.Endpoints)
+				if !ok {
+					glog.Errorf("tombstone contained object that is not a pod %#v", obj)
+					return
+				}
+			}
+			err := oc.deleteEndpoints(ep)
+			if err != nil {
+				glog.Errorf("Error in deleting endpoints - %v", err)
+			}
+			return
+		},
+	})
 }
